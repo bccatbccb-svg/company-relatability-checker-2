@@ -1,0 +1,28 @@
+{
+  "title": "Website Relevance Scorer",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "urls": {
+      "title": "URLs to analyze",
+      "type": "array",
+      "editor": "stringList",
+      "description": "List of website URLs to score against the 4 target categories."
+    },
+    "outputLabel": {
+      "title": "Output label",
+      "type": "string",
+      "editor": "textfield",
+      "description": "Optional. A short label for this run, e.g. a state name (ARIZONA, COLORADO). Results are saved to a dataset named results-<LABEL>-v1, and re-running with the same label auto-increments to v2, v3, etc. so nothing gets overwritten. Leave blank to fall back to a run-ID-based dataset name.",
+      "default": ""
+    },
+    "geminiApiKey": {
+      "title": "Gemini API Key",
+      "type": "string",
+      "editor": "textfield",
+      "isSecret": true,
+      "description": "Your Gemini API key, used for AI-based service summaries and verification."
+    }
+  },
+  "required": ["urls"]
+}
