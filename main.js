@@ -932,8 +932,17 @@ Actor.main(async () => {
   }
 
   // --- Determine dataset names: labeled + auto-versioned, or run-ID based ---
-  const client = Actor.newClient();
+  // NOTE: listing ALL datasets on the account requires a personal API token —
+  // the run's own auto-generated token is scoped too narrowly for this and
+  // will 403 with "Insufficient permissions for datasets". Pass a personal
+  // token via the apifyApiToken input (Console → Settings → Integrations).
+  const apifyToken = input?.apifyApiToken || process.env.APIFY_TOKEN;
+  const client = Actor.newClient(apifyToken ? { token: apifyToken } : undefined);
   const safeLabel = sanitizeLabel(input?.outputLabel);
+
+  if (safeLabel && !apifyToken) {
+    console.warn('⚠️  Output label was provided but no Apify API token was given — version lookup will likely fail with a 403. Add your personal token to the "Apify API Token" input field.');
+  }
 
   let resultsName;
   let detailName;
