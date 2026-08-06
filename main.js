@@ -1027,13 +1027,18 @@ Actor.main(async () => {
       const analysis = await analyzeServiceFit(pages, url.split('/')[2], url, geminiApiKey);
 
       const result = {
-        url,
-        status: 'success',
-        recommendation: analysis.recommendation,
+        // Column order (A→H) as requested: confidence, url, recommendation,
+        // geminiVerification, servicesSummary, status, targetCategoryMatch, error.
+        // Everything else follows after column H.
         confidence: analysis.confidence,
+        url,
+        recommendation: analysis.recommendation,
+        geminiVerification: analysis.geminiVerification || 'No verification performed',
         servicesSummary: analysis.servicesSummary,
-        primaryServiceIdentified: analysis.primaryServiceIdentified,
+        status: 'success',
         targetCategoryMatch: analysis.targetCategoryMatch,
+        error: null,
+        primaryServiceIdentified: analysis.primaryServiceIdentified,
         reasoning: analysis.reasoning,
         isPortfolioSite: analysis.isPortfolioSite,
         portfolioBoostApplied: analysis.portfolioBoostApplied,
@@ -1050,7 +1055,6 @@ Actor.main(async () => {
         metaTitleFound: !!homepageData?.metaTitle,
         metaDescriptionFound: !!homepageData?.metaDescription,
         schemaDataFound: !!homepageData?.schemaData,
-        geminiVerification: analysis.geminiVerification || 'No verification performed',
         timestamp: new Date(),
       };
 
@@ -1079,8 +1083,13 @@ Actor.main(async () => {
       console.error(`  ❌ Error: ${error.message}`);
 
       await freshDataset.pushData({
+        confidence: null,
         url,
+        recommendation: null,
+        geminiVerification: null,
+        servicesSummary: null,
         status: 'error',
+        targetCategoryMatch: null,
         error: error.message,
         timestamp: new Date(),
       });
