@@ -1,0 +1,18 @@
+{
+  "name": "website-service-analyzer-v2",
+  "version": "1.1.0",
+  "description": "Analyzes company websites to identify primary services and match against target categories. Supports labeled, auto-versioned output datasets (e.g. results-ARIZONA-v1).",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "dependencies": {
+    "apify": "^3.0.0",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "@google/generative-ai": "^0.3.0"
+  },
+  "author": "",
+  "license": "ISC"
+}
