@@ -13,7 +13,7 @@
       "title": "Output label",
       "type": "string",
       "editor": "textfield",
-      "description": "Optional. A short label for this run, e.g. a state name (ARIZONA, COLORADO). Results are saved to a dataset named results-<LABEL>-v1, and re-running with the same label auto-increments to v2, v3, etc. so nothing gets overwritten. Leave blank to fall back to a run-ID-based dataset name.",
+      "description": "Optional. A label for this run — spaces and special characters are fine, e.g. \"Architects | Maine, Louisiana & Maryland\". The label is saved as-is in a 'label' column on every result row. The dataset name uses a simplified version (letters, numbers and hyphens only, max 40 characters — an Apify requirement), e.g. results-ARCHITECTS-MAINE-LOUISIANA-MARYLAND-v1, and re-running with the same label auto-increments to v2, v3, etc. so nothing gets overwritten. Leave blank to fall back to a run-ID-based dataset name.",
       "default": ""
     },
     "geminiApiKey": {
