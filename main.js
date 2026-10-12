@@ -277,6 +277,12 @@ function describeFetchError(error) {
   if (error.code === 'ECONNABORTED') {
     return 'timeout';
   }
+  if (error.code === 'NOT_HTML') {
+    return error.message;
+  }
+  if (/maxContentLength|maxBodyLength/i.test(error.message || '')) {
+    return 'response too large (over 3 MB, likely a PDF or media file)';
+  }
   if (error.code) {
     return error.code; // e.g. ENOTFOUND, ECONNRESET, ECONNREFUSED
   }
@@ -295,7 +301,21 @@ async function extractPageContent(url, pageType = 'homepage') {
     const response = await axios.get(url, {
       timeout: 12000,
       headers: { 'User-Agent': 'Apify Relevance Scorer' },
+      // Some "services"/"about" links point at large PDFs or media files.
+      // Parsing those as HTML exhausts memory and kills the whole run, so cap
+      // the download size and keep the body as a raw string.
+      maxContentLength: 3 * 1024 * 1024,
+      maxBodyLength: 3 * 1024 * 1024,
+      responseType: 'text',
     });
+
+    const contentType = String(response.headers['content-type'] || '').toLowerCase();
+    if (contentType && !contentType.includes('html') && !contentType.includes('xml')) {
+      throw Object.assign(new Error(`not an HTML page (${contentType.split(';')[0]})`), { code: 'NOT_HTML' });
+    }
+    if (typeof response.data !== 'string' || response.data.startsWith('%PDF')) {
+      throw Object.assign(new Error('not an HTML page (binary/PDF body)'), { code: 'NOT_HTML' });
+    }
 
     const $ = cheerio.load(response.data);
 
@@ -899,15 +919,20 @@ async function getNextVersion(client, baseLabel) {
 
 /**
  * Sanitize a user-typed output label into something safe for a dataset name:
- * uppercase, letters/numbers/underscores only, no leading/trailing underscores.
+ * uppercase, letters/numbers/hyphens only, max 40 chars.
  */
 function sanitizeLabel(rawLabel) {
   if (!rawLabel) return null;
   const cleaned = rawLabel
     .trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    // Apify dataset names max out at 63 chars; "detail-logs-<LABEL>-v999"
+    // adds 17, so keep the label to 40 to leave room.
+    .slice(0, 40)
+    .replace(/-+$/g, '');
   return cleaned.length > 0 ? cleaned : null;
 }
 
@@ -938,7 +963,11 @@ Actor.main(async () => {
   // token via the apifyApiToken input (Console → Settings → Integrations).
   const apifyToken = input?.apifyApiToken || process.env.APIFY_TOKEN;
   const client = Actor.newClient(apifyToken ? { token: apifyToken } : undefined);
-  const safeLabel = sanitizeLabel(input?.outputLabel);
+  // The label as typed (spaces, |, &, accents etc. all kept). Apify only
+  // allows a-z, 0-9 and hyphens in dataset NAMES, so the dataset name uses a
+  // cleaned-up version, while the full label goes into every output row.
+  const displayLabel = (input?.outputLabel || '').trim() || null;
+  const safeLabel = sanitizeLabel(displayLabel);
 
   if (safeLabel && !apifyToken) {
     console.warn('⚠️  Output label was provided but no Apify API token was given — version lookup will likely fail with a 403. Add your personal token to the "Apify API Token" input field.');
@@ -946,12 +975,17 @@ Actor.main(async () => {
 
   let resultsName;
   let detailName;
+  let labelVersion = null;
 
   if (safeLabel) {
     const version = await getNextVersion(client, safeLabel);
+    labelVersion = `v${version}`;
     resultsName = `results-${safeLabel}-v${version}`;
     detailName = `detail-logs-${safeLabel}-v${version}`;
-    console.log(`📁 Label: "${safeLabel}" — this is version v${version}`);
+    console.log(`📁 Label: "${displayLabel}" — this is version v${version}`);
+    if (safeLabel !== displayLabel) {
+      console.log(`   (dataset name uses "${safeLabel}" — Apify only allows letters, numbers and hyphens there)`);
+    }
     if (version > 1) {
       console.log(`   (${version - 1} previous version(s) of "${safeLabel}" found and preserved)`);
     }
@@ -1027,6 +1061,8 @@ Actor.main(async () => {
       const analysis = await analyzeServiceFit(pages, url.split('/')[2], url, geminiApiKey);
 
       const result = {
+        label: displayLabel,
+        version: labelVersion,
         // Column order (A→H) as requested: confidence, url, recommendation,
         // geminiVerification, servicesSummary, status, targetCategoryMatch, error.
         // Everything else follows after column H.
@@ -1061,6 +1097,8 @@ Actor.main(async () => {
       await freshDataset.pushData(result);
 
       const detailLog = {
+        label: displayLabel,
+        version: labelVersion,
         url,
         recommendation: analysis.recommendation,
         primaryServiceIdentified: analysis.primaryServiceIdentified,
@@ -1083,6 +1121,8 @@ Actor.main(async () => {
       console.error(`  ❌ Error: ${error.message}`);
 
       await freshDataset.pushData({
+        label: displayLabel,
+        version: labelVersion,
         confidence: null,
         url,
         recommendation: null,
